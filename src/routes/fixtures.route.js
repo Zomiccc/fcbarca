@@ -11,7 +11,7 @@ const {
   getFixtureResult,
   overrideMatchResult,
 } = require("../services/fixture.service");
-const { syncNow, clearCache } = require("../jobs/fixtureSync.job");
+const { syncNow, clearCache, ensureFresh } = require("../jobs/fixtureSync.job");
 
 /**
  * Build the fixtures router.
@@ -29,6 +29,7 @@ function buildFixturesRouter(requireAdmin) {
    * Never touches Football-Data.org.
    */
   router.get("/api/fixtures", (req, res) => {
+    ensureFresh();
     const data = getCachedFixtures();
     res.json({
       ...data,
@@ -42,6 +43,7 @@ function buildFixturesRouter(requireAdmin) {
    * Returns the single soonest upcoming fixture (or null).
    */
   router.get("/api/fixtures/next", (req, res) => {
+    ensureFresh();
     const data = getCachedFixtures();
     const now = new Date();
     const upcoming = (data.matches || [])

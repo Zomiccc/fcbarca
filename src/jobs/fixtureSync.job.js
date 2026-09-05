@@ -24,34 +24,48 @@ const MATCHDAY_INTERVAL_MS = 3 * 60 * 1000;     // 3 minutes
 let timer = null;
 let syncing = false;
 let lastScheduledIntervalMs = NORMAL_INTERVAL_MS;
+let lastOnDemandAttempt = 0;
 
-function nextMatchInfo(cache) {
-  const now = new Date();
-  const upcoming = (cache.matches || [])
-    .filter((m) => new Date(m.utcDate) > now && !['FINISHED', 'POSTPONED', 'CANCELLED'].includes(m.status))
-    .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
-  if (!upcoming.length) return null;
-  return upcoming[0];
-}
+// How long after kickoff a match is still treated as "being played" — 90
+// minutes plus half time, stoppage, and a margin for the API catching up.
+const IN_PROGRESS_WINDOW_MS = 3.5 * 60 * 60 * 1000;
+// How far ahead of kickoff we start polling fast, so the first score of the
+// night isn't waiting on a 12-hour timer.
+const WARMUP_BEFORE_KICKOFF_MS = 2 * 60 * 60 * 1000;
 
-/** Decide the correct refresh interval for right now. */
+/**
+ * Decide the correct refresh interval for right now.
+ *
+ * Poll fast whenever a match is actually being played (or is about to be) —
+ * that's the only time scores change. Note this deliberately looks at
+ * matches that have ALREADY kicked off, not just upcoming ones: a match in
+ * progress is exactly when we most need fresh data, and judging the interval
+ * purely from the next *unplayed* fixture meant that the moment a match
+ * kicked off, the interval was decided by the following fixture — often the
+ * next day — and dropped to 12 hours mid-match, freezing the score.
+ */
 function desiredIntervalMs(cache) {
-  const next = nextMatchInfo(cache);
-  if (!next) return NORMAL_INTERVAL_MS;
+  const now = Date.now();
+  const matches = cache.matches || [];
+  let fast = false;
 
-  const kickoff = new Date(next.utcDate);
-  const now = new Date();
+  for (const m of matches) {
+    if (['POSTPONED', 'CANCELLED'].includes(m.status)) continue;
+    const kickoff = new Date(m.utcDate).getTime();
+    if (!Number.isFinite(kickoff)) continue;
 
-  // If the next match is today (same calendar date in UTC), poll every 3 min.
-  const sameUtcDay =
-    kickoff.getUTCFullYear() === now.getUTCFullYear() &&
-    kickoff.getUTCMonth() === now.getUTCMonth() &&
-    kickoff.getUTCDate() === now.getUTCDate();
+    const sinceKickoff = now - kickoff;
+    const beingPlayed =
+      sinceKickoff >= 0 && sinceKickoff <= IN_PROGRESS_WINDOW_MS && m.status !== 'FINISHED';
+    const aboutToStart = sinceKickoff < 0 && -sinceKickoff <= WARMUP_BEFORE_KICKOFF_MS;
 
-  // If the match is FINISHED (status rolled over), fall back to 12 hours.
-  if (next.status === 'FINISHED') return NORMAL_INTERVAL_MS;
+    if (beingPlayed || aboutToStart) {
+      fast = true;
+      break;
+    }
+  }
 
-  return sameUtcDay ? MATCHDAY_INTERVAL_MS : NORMAL_INTERVAL_MS;
+  return fast ? MATCHDAY_INTERVAL_MS : NORMAL_INTERVAL_MS;
 }
 
 async function runSync(reason) {
@@ -99,6 +113,39 @@ function startFixtureSync() {
   scheduleTimer(interval);
 }
 
+/**
+ * Refresh the cache if it has gone stale, triggered by a visitor's request
+ * rather than by the timer.
+ *
+ * The setInterval scheduler above only runs while the Node process is alive.
+ * On a host that sleeps the app when idle (e.g. Render's free tier), the
+ * process — and its timer — is killed after a few minutes without traffic,
+ * so overnight, when nobody is on the site, scheduled syncs simply never
+ * happen and scores sit stale until someone shows up. This closes that gap:
+ * whenever a page asks for fixture data and the cache is older than the
+ * interval we'd have wanted, kick off a sync.
+ *
+ * Deliberately fire-and-forget — the caller's response is never delayed. The
+ * page polls every 60s, so the fresh data lands moments later.
+ */
+function ensureFresh() {
+  if (syncing) return;
+  const now = Date.now();
+
+  // Cooldown on ATTEMPTS, not just successes. A failing sync (rate limit,
+  // API outage) leaves lastSync untouched, so without this every single
+  // request would fire another attempt and hammer Football-Data.org.
+  if (now - lastOnDemandAttempt < MATCHDAY_INTERVAL_MS) return;
+
+  const cache = getCachedFixtures();
+  const interval = desiredIntervalMs(cache);
+  const lastSync = cache.lastSync ? new Date(cache.lastSync).getTime() : 0;
+  if (now - lastSync < interval) return;
+
+  lastOnDemandAttempt = now;
+  runSync('stale-cache');
+}
+
 /** Manual "Sync Now" from the admin panel. */
 async function syncNow() {
   const cache = await syncFixtures();
@@ -119,4 +166,4 @@ function clearCache() {
   return getCachedFixtures();
 }
 
-module.exports = { startFixtureSync, syncNow, clearCache };
+module.exports = { startFixtureSync, syncNow, clearCache, ensureFresh };

@@ -11,7 +11,7 @@ const webpush = require('web-push');
 const { readDb, writeDb, initDb, isPgMode, reseedFromJson } = require('./lib/db');
 const { sendJoinConfirmation, sendPaymentReceipt, sendMemberAuthCode } = require('./lib/mailer');
 const { buildFixturesRouter } = require('./src/routes/fixtures.route');
-const { startFixtureSync } = require('./src/jobs/fixtureSync.job');
+const { startFixtureSync, ensureFresh } = require('./src/jobs/fixtureSync.job');
 const { getCachedFixtures, setMatchHidden, getHiddenMatchIds } = require('./src/services/fixture.service');
 const predictor = require('./lib/predictor');
 
@@ -748,6 +748,9 @@ app.get('/api/member/me', requireMember, (req, res) => {
      that match has kicked off, so they are never sent to the browser early.
    ========================================================================== */
 function fixtureMatches() {
+  // Self-heal a stale cache on read — see ensureFresh() for why the timer
+  // alone isn't enough on a host that sleeps the app when idle.
+  ensureFresh();
   return getCachedFixtures().matches || [];
 }
 

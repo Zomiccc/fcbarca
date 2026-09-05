@@ -229,7 +229,17 @@
     .pred-layout{grid-template-columns:1fr}
   }
   @media(max-width:600px){
-    .panel-head{padding:18px 16px}
+    /* Long headings ("UEFA Champions League Match Day 1", "Penya UEFA
+       Champions League Table") were wrapping on a phone with a single
+       orphaned word on the second line. Two causes, both handled here:
+       the countdown shared the heading's flex row and squeezed it, and at
+       the desktop size there's no headroom if the Teko webfont hasn't
+       loaded (the fallback is ~25% wider). Stack the head so the heading
+       always gets the full panel width, and scale it with the viewport.
+       NB: this page sets html{font-size:118.75%}, so 1rem is 19px here. */
+    .panel-head{padding:18px 16px;flex-direction:column;align-items:flex-start;gap:10px}
+    .panel-head h3{font-size:clamp(.8rem,4.4vw,1.1rem)}
+    .deadline-row{margin-left:0}
     .panel-body{padding:18px 16px}
     .lock-note{margin:0 16px 18px}
     .pred-row{

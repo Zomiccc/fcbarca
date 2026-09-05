@@ -990,13 +990,25 @@ app.get('/api/predictions/all', requireMember, (req, res) => {
   res.json({ matches: revealed });
 });
 
+// The club runs a separate table per competition (La Liga vs Champions
+// League) — pass ?competition=PD or ?competition=CL to pick one. Defaults to
+// La Liga since that's the club's primary table.
+const LEADERBOARD_COMPETITIONS = new Set(['PD', 'CL']);
 app.get('/api/predictions/leaderboard', requireMember, (req, res) => {
   const db = readDb();
   const currentMembers = db.members.filter((m) => m.status === 'paid');
-  const table = predictor.buildLeaderboard(db.predictions, currentMembers, fixtureMatches(), fixtureLastSync());
+  const competitionCode = LEADERBOARD_COMPETITIONS.has(req.query.competition) ? req.query.competition : 'PD';
+  const table = predictor.buildLeaderboard(
+    db.predictions,
+    currentMembers,
+    fixtureMatches(),
+    fixtureLastSync(),
+    competitionCode,
+  );
   res.json({
     leaderboard: table.map((row) => ({ ...row, isMe: row.memberId === req.member.id })),
     points: predictor.POINTS,
+    competition: competitionCode,
   });
 });
 

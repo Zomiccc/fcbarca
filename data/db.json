@@ -574,5 +574,6 @@
   "chatMessages": [],
   "broadcasts": [],
   "chatConversations": [],
-  "pushSubscriptions": []
+  "pushSubscriptions": [],
+  "deletedMemberNames": {}
 }

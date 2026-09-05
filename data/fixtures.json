@@ -1,6 +1,6 @@
 {
-  "lastSync": "2026-09-05T04:32:02.338Z",
-  "nextSync": "2026-09-05T04:35:02.346Z",
+  "lastSync": "2026-09-05T21:12:19.717Z",
+  "nextSync": "2026-09-06T09:12:19.723Z",
   "apiStatus": "ok",
   "lastError": null,
   "matches": [
@@ -2042,7 +2042,7 @@
     {
       "id": 564663,
       "utcDate": "2026-09-05T14:15:00Z",
-      "status": "TIMED",
+      "status": "FINISHED",
       "minute": null,
       "injuryTime": null,
       "competitionId": 2014,
@@ -2071,15 +2071,15 @@
       "isAway": false,
       "isBarcaMatch": false,
       "score": {
-        "home": null,
-        "away": null
+        "home": 3,
+        "away": 0
       },
       "goals": []
     },
     {
       "id": 564660,
       "utcDate": "2026-09-05T16:30:00Z",
-      "status": "TIMED",
+      "status": "FINISHED",
       "minute": null,
       "injuryTime": null,
       "competitionId": 2014,
@@ -2108,15 +2108,15 @@
       "isAway": false,
       "isBarcaMatch": false,
       "score": {
-        "home": null,
-        "away": null
+        "home": 3,
+        "away": 2
       },
       "goals": []
     },
     {
       "id": 564662,
       "utcDate": "2026-09-05T19:00:00Z",
-      "status": "TIMED",
+      "status": "FINISHED",
       "minute": null,
       "injuryTime": null,
       "competitionId": 2014,
@@ -2145,8 +2145,8 @@
       "isAway": false,
       "isBarcaMatch": false,
       "score": {
-        "home": null,
-        "away": null
+        "home": 2,
+        "away": 3
       },
       "goals": []
     },

@@ -67,6 +67,12 @@
   }
   .panel-head h3{margin:0;font-size:1.1rem}
   .panel-body{padding:24px}
+  .league-select{
+    margin-left:auto;background:rgba(0,0,0,.4);border:1px solid var(--line);color:var(--chalk);
+    padding:8px 12px;border-radius:4px;font-family:var(--mono);font-size:.68rem;
+    letter-spacing:.04em;cursor:pointer;
+  }
+  .league-select:focus{outline:2px solid var(--gold);outline-offset:1px}
 
   /* ---------- Deadline / status ---------- */
   .deadline-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-left:auto}
@@ -562,7 +568,13 @@
           </div>
 
           <div class="panel" style="margin-bottom:26px">
-            <div class="panel-head"><h3>League table</h3></div>
+            <div class="panel-head">
+              <h3>League table</h3>
+              <select id="leaderboardCompetition" class="league-select" aria-label="Choose league table">
+                <option value="PD">Penya LaLiga Table</option>
+                <option value="CL">Penya UEFA Champions League Table</option>
+              </select>
+            </div>
             <div class="panel-body">
               <div id="leaderboard"><p class="empty-note">Loading…</p></div>
             </div>

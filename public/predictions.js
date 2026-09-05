@@ -436,7 +436,9 @@
   }
   async function loadLeaderboard() {
     try {
-      renderLeaderboard(await api('/api/predictions/leaderboard'));
+      const select = $('leaderboardCompetition');
+      const competition = select ? select.value : 'PD';
+      renderLeaderboard(await api(`/api/predictions/leaderboard?competition=${encodeURIComponent(competition)}`));
     } catch (err) {
       $('leaderboard').innerHTML = `<p class="empty-note">${escapeHtml(err.message)}</p>`;
     }
@@ -816,6 +818,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     initGate();
     $('submitBtn').addEventListener('click', submitPredictions);
+    const leaderboardSelect = $('leaderboardCompetition');
+    if (leaderboardSelect) leaderboardSelect.addEventListener('change', loadLeaderboard);
     boot();
   });
 })();

@@ -9,6 +9,11 @@
   const KARACHI = 'Asia/Karachi';
   let deadlineTimer = null;
 
+  // Which competition the whole page is showing. 'PD' = La Liga, 'CL' =
+  // Champions League. They run concurrently and are scored separately.
+  const COMPETITION_LABELS = { PD: 'Penya LaLiga', CL: 'Penya UEFA Champions League' };
+  let selectedCompetition = 'PD';
+
   /* ---------------------------- helpers ---------------------------- */
   const $ = (id) => document.getElementById(id);
 
@@ -421,31 +426,61 @@
     `).join('');
   }
 
+  /* ---------------------------- competition switcher ---------------------------- */
+  function setCompetition(code) {
+    if (!COMPETITION_LABELS[code] || code === selectedCompetition) return;
+    selectedCompetition = code;
+
+    document.querySelectorAll('.comp-tab').forEach((tab) => {
+      const active = tab.dataset.competition === code;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    const title = $('leaderboardTitle');
+    if (title) title.textContent = `${COMPETITION_LABELS[code]} Table`;
+
+    // Everything on the page is scoped to the chosen competition.
+    loadWindow();
+    loadMine();
+    loadLeaderboard();
+    loadReveal();
+  }
+
+  function initCompetitionTabs() {
+    document.querySelectorAll('.comp-tab').forEach((tab) => {
+      tab.addEventListener('click', () => setCompetition(tab.dataset.competition));
+    });
+  }
+
   /* ---------------------------- loaders ---------------------------- */
+  // Everything on this page — fixtures to predict, results, my points, the
+  // league table — is scoped to one competition at a time.
+  function competitionQuery() {
+    return `?competition=${encodeURIComponent(selectedCompetition)}`;
+  }
+
   async function loadWindow() {
     try {
-      renderWindow(await api('/api/predictions/window'));
+      renderWindow(await api(`/api/predictions/window${competitionQuery()}`));
     } catch (err) {
       $('predList').innerHTML = `<p class="empty-note">${escapeHtml(err.message)}</p>`;
     }
   }
   async function loadMine() {
     try {
-      renderMine(await api('/api/predictions/me'));
+      renderMine(await api(`/api/predictions/me${competitionQuery()}`));
     } catch { /* sidebar is non-critical */ }
   }
   async function loadLeaderboard() {
     try {
-      const select = $('leaderboardCompetition');
-      const competition = select ? select.value : 'PD';
-      renderLeaderboard(await api(`/api/predictions/leaderboard?competition=${encodeURIComponent(competition)}`));
+      renderLeaderboard(await api(`/api/predictions/leaderboard${competitionQuery()}`));
     } catch (err) {
       $('leaderboard').innerHTML = `<p class="empty-note">${escapeHtml(err.message)}</p>`;
     }
   }
   async function loadReveal() {
     try {
-      renderReveal(await api('/api/predictions/all'));
+      renderReveal(await api(`/api/predictions/all${competitionQuery()}`));
     } catch (err) {
       $('revealList').innerHTML = `<p class="empty-note">${escapeHtml(err.message)}</p>`;
     }
@@ -818,8 +853,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     initGate();
     $('submitBtn').addEventListener('click', submitPredictions);
-    const leaderboardSelect = $('leaderboardCompetition');
-    if (leaderboardSelect) leaderboardSelect.addEventListener('change', loadLeaderboard);
+    initCompetitionTabs();
     boot();
   });
 })();

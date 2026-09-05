@@ -67,12 +67,22 @@
   }
   .panel-head h3{margin:0;font-size:1.1rem}
   .panel-body{padding:24px}
-  .league-select{
-    margin-left:auto;background:rgba(0,0,0,.4);border:1px solid var(--line);color:var(--chalk);
-    padding:8px 12px;border-radius:4px;font-family:var(--mono);font-size:.68rem;
-    letter-spacing:.04em;cursor:pointer;
+  /* ---------- Competition switcher (La Liga / Champions League) ---------- */
+  .comp-switch{
+    display:flex;gap:8px;flex-wrap:wrap;margin-bottom:26px;
   }
-  .league-select:focus{outline:2px solid var(--gold);outline-offset:1px}
+  .comp-tab{
+    flex:1 1 220px;padding:14px 20px;cursor:pointer;
+    background:var(--night-2);border:1px solid var(--line);border-radius:var(--radius-lg);
+    color:var(--chalk-dim);font-family:var(--display);font-weight:700;
+    text-transform:uppercase;letter-spacing:.06em;font-size:.82rem;line-height:1.2;
+    transition:color .2s ease,border-color .2s ease,background .2s ease;
+  }
+  .comp-tab:hover{color:var(--chalk);border-color:var(--gold)}
+  .comp-tab.is-active{
+    background:var(--grana);border-color:var(--grana);color:#fff;
+  }
+  .comp-tab:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 
   /* ---------- Deadline / status ---------- */
   .deadline-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-left:auto}
@@ -507,6 +517,11 @@
         <button type="button" id="logoutBtn">Log out</button>
       </div>
 
+      <div class="comp-switch" role="tablist" aria-label="Choose competition">
+        <button type="button" class="comp-tab is-active" data-competition="PD" role="tab" aria-selected="true">Penya LaLiga</button>
+        <button type="button" class="comp-tab" data-competition="CL" role="tab" aria-selected="false">Penya UEFA Champions League</button>
+      </div>
+
       <div class="panel" id="broadcastPanel" style="margin-bottom:26px" hidden>
         <div class="panel-head"><h3>Announcements</h3></div>
         <div class="panel-body">
@@ -569,11 +584,7 @@
 
           <div class="panel" style="margin-bottom:26px">
             <div class="panel-head">
-              <h3>League table</h3>
-              <select id="leaderboardCompetition" class="league-select" aria-label="Choose league table">
-                <option value="PD">Penya LaLiga Table</option>
-                <option value="CL">Penya UEFA Champions League Table</option>
-              </select>
+              <h3 id="leaderboardTitle">Penya LaLiga Table</h3>
             </div>
             <div class="panel-body">
               <div id="leaderboard"><p class="empty-note">Loading…</p></div>

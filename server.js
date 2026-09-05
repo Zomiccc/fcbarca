@@ -758,18 +758,29 @@ function fixtureLastSync() {
   return getCachedFixtures().lastSync || null;
 }
 
-// The prediction table: next 10 upcoming fixtures, the deadline, and the
-// member's own already-locked predictions.
+/* The club runs La Liga and the Champions League as two separate
+   competitions — separate prediction sets, separate results, separate league
+   tables. They run concurrently, so every member-facing predictions endpoint
+   takes ?competition=PD|CL and defaults to La Liga. */
+const PREDICTION_COMPETITIONS = ['PD', 'CL'];
+function requestedCompetition(req) {
+  return PREDICTION_COMPETITIONS.includes(req.query.competition) ? req.query.competition : 'PD';
+}
+
+// The prediction table for one competition: its current round, the deadline,
+// and the member's own already-locked predictions.
 app.get('/api/predictions/window', requireMember, (req, res) => {
   const matches = fixtureMatches();
   const now = new Date();
-  const window = predictor.getPredictionWindow(matches, now);
-  const deadline = predictor.getDeadline(matches, now);
+  const competition = requestedCompetition(req);
+  const window = predictor.getPredictionWindow(matches, now, competition);
+  const deadline = predictor.getDeadline(matches, now, competition);
   const db = readDb();
   const mine = db.predictions.filter((p) => p.memberId === req.member.id);
   const myByFixture = new Map(mine.map((p) => [String(p.fixtureId), p]));
 
   res.json({
+    competition,
     deadline: deadline ? deadline.toISOString() : null,
     points: predictor.POINTS,
     fixtures: window.map((m) => {
@@ -804,18 +815,29 @@ app.post('/api/predictions', requireMember, async (req, res) => {
 
   const matches = fixtureMatches();
   const now = new Date();
-  const deadline = predictor.getDeadline(matches, now);
-  if (!deadline) {
+
+  // Both competitions are open for predictions at the same time, each with
+  // its own current round and its own deadline, so a submission is validated
+  // against whichever competition the fixture actually belongs to.
+  const openSets = PREDICTION_COMPETITIONS.map((code) => {
+    const window = predictor.getPredictionWindow(matches, now, code);
+    return {
+      code,
+      byId: new Map(window.map((m) => [String(m.id), m])),
+      deadline: window.length ? new Date(window[0].utcDate) : null,
+    };
+  });
+  if (!openSets.some((s) => s.byId.size)) {
     return res.status(409).json({ error: 'There are no upcoming fixtures to predict right now.' });
   }
-  if (now >= deadline) {
-    return res.status(409).json({
-      error: 'Predictions are closed — the first match of this set has already kicked off.',
-    });
-  }
+  const findOpenFixture = (fixtureId) => {
+    for (const set of openSets) {
+      const match = set.byId.get(fixtureId);
+      if (match) return { match, deadline: set.deadline };
+    }
+    return null;
+  };
 
-  const window = predictor.getPredictionWindow(matches, now);
-  const windowById = new Map(window.map((m) => [String(m.id), m]));
   const existing = readDb().predictions;
   const alreadyPredicted = new Set(
     existing.filter((p) => p.memberId === req.member.id).map((p) => String(p.fixtureId)),
@@ -828,9 +850,15 @@ app.post('/api/predictions', requireMember, async (req, res) => {
     const homeGoals = Number(row?.homeGoals);
     const awayGoals = Number(row?.awayGoals);
 
-    const match = windowById.get(fixtureId);
-    if (!match) {
+    const open = findOpenFixture(fixtureId);
+    if (!open) {
       return res.status(400).json({ error: 'One of those matches is not open for predictions.' });
+    }
+    const { match, deadline } = open;
+    if (deadline && now >= deadline) {
+      return res.status(409).json({
+        error: 'Predictions are closed — the first match of this set has already kicked off.',
+      });
     }
     if (seen.has(fixtureId)) {
       return res.status(400).json({ error: 'Duplicate prediction for the same match.' });
@@ -888,9 +916,11 @@ app.post('/api/predictions', requireMember, async (req, res) => {
 app.get('/api/predictions/me', requireMember, (req, res) => {
   const matches = fixtureMatches();
   const lastSync = fixtureLastSync();
+  const competition = requestedCompetition(req);
   const matchById = new Map(matches.map((m) => [String(m.id), m]));
   const mine = readDb()
     .predictions.filter((p) => p.memberId === req.member.id)
+    .filter((p) => matchById.get(String(p.fixtureId))?.competitionCode === competition)
     .map((p) => {
       const match = matchById.get(String(p.fixtureId));
       const finished = predictor.hasFinalScore(match, lastSync);
@@ -911,7 +941,7 @@ app.get('/api/predictions/me', requireMember, (req, res) => {
     .sort((a, b) => new Date(a.utcDate || 0) - new Date(b.utcDate || 0));
 
   const total = mine.reduce((sum, p) => sum + (p.points || 0), 0);
-  res.json({ predictions: mine, totalPoints: total });
+  res.json({ competition, predictions: mine, totalPoints: total });
 });
 
 // Everyone's predictions — but ONLY for matches that have already kicked off.
@@ -921,6 +951,7 @@ app.get('/api/predictions/all', requireMember, (req, res) => {
   const now = new Date();
   const matches = fixtureMatches();
   const lastSync = fixtureLastSync();
+  const competition = requestedCompetition(req);
   const hiddenIds = getHiddenMatchIds(); // display-only filter — never touches scoring
   const matchById = new Map(matches.map((m) => [String(m.id), m]));
   const nameById = new Map(
@@ -933,6 +964,7 @@ app.get('/api/predictions/all', requireMember, (req, res) => {
   );
 
   const revealed = matches
+    .filter((m) => m.competitionCode === competition)
     .filter((m) => predictor.hasKickedOff(m, now) && !hiddenIds.has(String(m.id)))
     .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate))
     .map((match) => {
@@ -987,17 +1019,13 @@ app.get('/api/predictions/all', requireMember, (req, res) => {
     })
     .filter((m) => m.predictions.length);
 
-  res.json({ matches: revealed });
+  res.json({ competition, matches: revealed });
 });
 
-// The club runs a separate table per competition (La Liga vs Champions
-// League) — pass ?competition=PD or ?competition=CL to pick one. Defaults to
-// La Liga since that's the club's primary table.
-const LEADERBOARD_COMPETITIONS = new Set(['PD', 'CL']);
 app.get('/api/predictions/leaderboard', requireMember, (req, res) => {
   const db = readDb();
   const currentMembers = db.members.filter((m) => m.status === 'paid');
-  const competitionCode = LEADERBOARD_COMPETITIONS.has(req.query.competition) ? req.query.competition : 'PD';
+  const competitionCode = requestedCompetition(req);
   const table = predictor.buildLeaderboard(
     db.predictions,
     currentMembers,
